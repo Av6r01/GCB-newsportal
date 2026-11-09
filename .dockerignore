@@ -1,0 +1,12 @@
+# Keep build context lean — never bake state into the image
+node_modules
+dist
+data/database.json
+data/backups
+data/migration
+public/uploads/
+.env
+.env.*
+!.env.example
+tests
+docs

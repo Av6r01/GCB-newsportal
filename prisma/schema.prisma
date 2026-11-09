@@ -1,0 +1,567 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/**
+ * Database schema — runtime source of truth since Phase 6B.
+ * PostgreSQL access via Prisma Client (src/lib/database.ts driver selector).
+ *
+ * RoleType: kept in sync with src/modules/auth/permissions.ts RoleType.
+ * (Schema-only legacy values EDITOR / CONTRIBUTOR exist in the historical
+ * initial migration enum but carry no rows and are intentionally omitted here.)
+ */
+enum RoleType {
+  SUPER_ADMIN
+  ADMIN
+  MANAGING_EDITOR
+  SECTION_EDITOR
+  COPY_EDITOR
+  JOURNALIST
+  REPORTER
+  PHOTOGRAPHER
+  VIDEO_EDITOR
+  ADVERTISING_MANAGER
+  ANALYST
+  READER
+}
+
+enum ArticleStatus {
+  DRAFT
+  IN_REVIEW
+  REVISION_REQUESTED
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PriorityLevel {
+  NORMAL
+  FEATURED
+  BREAKING
+  INVESTIGATIVE
+}
+
+enum ArticleType {
+  STANDARD
+  LIVE_BLOG
+  VIDEO
+  PHOTO_GALLERY
+  OPINION
+  EXPLAINER
+}
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SPAM
+}
+
+enum MediaAssetType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+}
+
+enum ScheduleStatus {
+  QUEUED
+  IN_PROGRESS
+  EXECUTED
+  FAILED
+  CANCELLED
+}
+
+// --- User & Authentication Models ---
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  passwordHash      String
+  name              String
+  role              RoleType @default(READER)
+  avatar            String?
+  isActive          Boolean  @default(true)
+  /** Phase 4 auth: tokens issued before this timestamp are rejected */
+  passwordChangedAt DateTime?
+  profile           AuthorProfile?
+  sessions          UserSession[]
+  tokens            PasswordResetToken[]
+  revokedSessions   RevokedSession[]
+  articlesAuthored Article[]         @relation("PrimaryAuthor")
+  contributions    ArticleContributor[]
+  revisions        ArticleRevision[]
+  editorialEvents  EditorialEvent[]
+  auditLogs        AuditLog[]
+  mediaUploaded    MediaAsset[]
+  liveBlogUpdates  LiveBlogUpdate[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([email])
+  @@index([role])
+}
+
+model UserSession {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String    @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+model AuthorProfile {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  byline       String
+  biography    String?
+  designation  String?
+  socialLinks  Json?     // { twitter?: string, linkedin?: string, website?: string }
+  credentials  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// --- Taxonomy & Categorization ---
+
+model Category {
+  id           String     @id @default(uuid())
+  name         String     @unique
+  slug         String     @unique
+  description  String?
+  color        String?
+  parentId     String?
+  parent       Category?  @relation("NestedCategories", fields: [parentId], references: [id], onDelete: Restrict)
+  children     Category[] @relation("NestedCategories")
+  articles     Article[]
+  displayOrder Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@index([slug])
+  @@index([parentId])
+}
+
+model Tag {
+  id           String       @id @default(uuid())
+  name         String       @unique
+  slug         String       @unique
+  description  String?
+  articles     ArticleTag[]
+  createdAt    DateTime     @default(now())
+
+  @@index([slug])
+}
+
+model ArticleTag {
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@index([articleId])
+  @@index([tagId])
+}
+
+// --- Core Editorial & Content Models ---
+
+model Article {
+  id               String               @id @default(uuid())
+  title            String
+  slug             String               @unique
+  excerpt          String
+  content          String               // HTML / Structured Markdown
+  structuredBody   Json?                // Rich Block Content JSON
+  coverImageId     String?
+  coverImageAsset  MediaAsset?          @relation("ArticleCoverImage", fields: [coverImageId], references: [id], onDelete: SetNull)
+  categoryId       String
+  category         Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  authorId         String
+  author           User                 @relation("PrimaryAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  status           ArticleStatus        @default(DRAFT)
+  articleType      ArticleType          @default(STANDARD)
+  priority         PriorityLevel        @default(NORMAL)
+  views            Int                  @default(0)
+  scheduledFor     DateTime?
+  publishedAt      DateTime?
+  archivedAt       DateTime?
+  version          Int                  @default(1)
+  videoUrl         String?              // URL for video articles
+  // Phase 6B: columns routes have been writing through the JSON layer's
+  // spread-update, previously missing from the schema (plan §3.3)
+  coverImage       String?              // cover image URL as rendered by the front end (kept alongside coverImageId — plan Q2)
+  imageCaption     String?
+  imageCredit      String?
+  sourceAttribution String?
+  seoTitle         String?
+  seoDescription   String?
+  socialImage      String?
+  editorialNote    String?
+  
+  contributors     ArticleContributor[]
+  mediaAssets      ArticleMedia[]
+  revisions        ArticleRevision[]
+  editorialEvents  EditorialEvent[]
+  comments         Comment[]
+  tags             ArticleTag[]
+  liveBlogUpdates  LiveBlogUpdate[]
+  breakingNotice   BreakingNewsAnnouncement?
+  schedules        PublicationSchedule[]
+  reactions        Reaction[]           @relation("ArticleReactions")
+
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([status])
+  @@index([priority])
+  @@index([publishedAt])
+  @@index([status, publishedAt])
+}
+
+model ArticleContributor {
+  id        String   @id @default(uuid())
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  roleTitle String   // e.g. "Investigative Researcher", "Photographer"
+  createdAt DateTime @default(now())
+
+  @@unique([articleId, userId])
+  @@index([articleId])
+  @@index([userId])
+}
+
+model ArticleRevision {
+  id            String   @id @default(uuid())
+  articleId     String
+  article       Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  version       Int
+  title         String
+  excerpt       String
+  content       String
+  changeSummary String?
+  editorId      String
+  editor        User     @relation(fields: [editorId], references: [id], onDelete: Restrict)
+  createdAt     DateTime @default(now())
+
+  @@unique([articleId, version])
+  @@index([articleId])
+  @@index([version])
+}
+
+model EditorialEvent {
+  id         String         @id @default(uuid())
+  articleId  String
+  article    Article        @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  actorId    String
+  actor      User           @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  eventType  String         // SUBMIT_REVIEW, APPROVE, REQUEST_REVISION, PUBLISH, ARCHIVE
+  fromStatus ArticleStatus?
+  toStatus   ArticleStatus
+  note       String?
+  createdAt  DateTime       @default(now())
+
+  @@index([articleId])
+  @@index([actorId])
+}
+
+model PublicationSchedule {
+  id             String         @id @default(uuid())
+  articleId      String
+  article        Article        @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  targetPublish  DateTime
+  executedAt     DateTime?
+  status         ScheduleStatus @default(QUEUED)
+  failureReason  String?
+  idempotencyKey String         @unique
+  createdAt      DateTime       @default(now())
+
+  @@index([articleId])
+  @@index([status])
+  @@index([targetPublish])
+}
+
+// --- Media & Galleries ---
+
+model MediaAsset {
+  id          String         @id @default(uuid())
+  filename    String
+  originalUrl String
+  cdnUrl      String?
+  mimeType    String
+  sizeBytes   Int?
+  width       Int?
+  height      Int?
+  altText     String?
+  caption     String?
+  credit      String?
+  assetType   MediaAssetType @default(IMAGE)
+  uploaderId  String
+  uploader    User           @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  /** Focal point percentage (0-100) persisted through the JSON layer, migrated per plan §3.3 */
+  focalX      Int            @default(50)
+  focalY      Int            @default(50)
+
+  /// Phase 11: storage abstraction bookkeeping.
+  /// Object key inside the storage provider (local path segment or S3 key);
+  /// driver actually used at write time (local|s3 — never asserted, recorded);
+  /// per-asset visibility (public = direct read URLs, private = signed URLs);
+  /// generated responsive variants with their own keys/URLs/dimensions/content types.
+  storageKey    String?
+  storageDriver String?
+  visibility    String  @default("public")
+  variants      Json?
+
+  coverFor    Article[]      @relation("ArticleCoverImage")
+  articleUses ArticleMedia[]
+  galleryUses GalleryItem[]
+
+  createdAt   DateTime       @default(now())
+
+  @@index([uploaderId])
+  @@index([assetType])
+}
+
+model ArticleMedia {
+  id           String     @id @default(uuid())
+  articleId    String
+  article      Article    @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  mediaAssetId String
+  mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+  position     Int        @default(0)
+  placement    String     @default("INLINE") // INLINE, HERO, SIDEBAR
+  createdAt    DateTime   @default(now())
+
+  @@unique([articleId, mediaAssetId])
+  @@index([articleId, position])
+  @@index([articleId])
+  @@index([mediaAssetId])
+}
+
+model PhotoGallery {
+  id          String        @id @default(uuid())
+  title       String
+  slug        String        @unique
+  description String?
+  items       GalleryItem[]
+  createdAt   DateTime      @default(now())
+}
+
+model GalleryItem {
+  id           String       @id @default(uuid())
+  galleryId    String
+  gallery      PhotoGallery @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  mediaAssetId String
+  mediaAsset   MediaAsset   @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+  orderIndex   Int          @default(0)
+  caption      String?
+
+  @@index([galleryId])
+}
+
+model VideoRecord {
+  id          String   @id @default(uuid())
+  title       String
+  slug        String   @unique
+  videoUrl    String
+  durationSec Int?
+  thumbnail   String?
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+// --- Live Blogs & Breaking Announcements ---
+
+model LiveBlogUpdate {
+  id         String   @id @default(uuid())
+  articleId  String
+  article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  headline   String
+  body       String
+  isKeyEvent Boolean  @default(false)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  createdAt  DateTime @default(now())
+
+  @@index([articleId])
+  @@index([isKeyEvent])
+}
+
+model BreakingNewsAnnouncement {
+  id          String    @id @default(uuid())
+  headline    String
+  summary     String?
+  articleId   String?   @unique
+  article     Article?  @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  urgencyRank Int       @default(1) // 1=Standard, 2=High, 3=Flash
+  activeUntil DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  @@index([isActive])
+}
+
+// --- Reader Engagement ---
+
+model Comment {
+  id          String        @id @default(uuid())
+  articleId   String
+  article     Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  authorName  String
+  authorEmail String
+  content     String
+  status      CommentStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+
+  @@index([articleId, status])
+  @@index([articleId])
+  @@index([status])
+}
+
+model Poll {
+  id        String   @id @default(uuid())
+  question  String
+  options   Json     // Array of { option: string, votes: number }
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model NewsletterSubscription {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  frequency    String    @default("DAILY") // DAILY, WEEKLY
+  isConfirmed  Boolean   @default(false)
+  confirmToken String?
+  subscribedAt DateTime  @default(now())
+
+  @@index([email])
+}
+
+// --- Infrastructure, SEO & Ads ---
+
+model UrlRedirect {
+  id              String   @id @default(uuid())
+  sourcePath      String   @unique
+  destinationPath String
+  statusCode      Int      @default(301)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  @@index([sourcePath])
+}
+
+model AdPlacement {
+  id          String   @id @default(uuid())
+  slotName    String   @unique // e.g. "LEADERBOARD_TOP", "SIDEBAR_RECTANGLE"
+  dimensions  String   // e.g. "728x90", "300x250"
+  adCode      String
+  isActive    Boolean  @default(true)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SiteSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   // e.g. "ARTICLE_PUBLISH", "ROLE_CHANGE"
+  entityType String   // "ARTICLE", "USER", "CATEGORY"
+  entityId   String?
+  details    String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  type      String   // PAGE_VIEW, ENGAGED_READ, SEARCH, NEWSLETTER_SIGNUP
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+  @@index([type, createdAt])
+}
+
+// --- Phase 6B: models previously only persisted through the JSON layer ---
+
+/** Article page reactions (no user linkage — per-IP rate limiting stays in server.ts) */
+model Reaction {
+  id        String   @id @default(uuid())
+  articleId String
+  article   Article  @relation("ArticleReactions", fields: [articleId], references: [id], onDelete: Cascade)
+  type      String   // INSIGHTFUL, URGENT, ESSENTIAL, BALANCED
+  createdAt DateTime @default(now())
+
+  @@index([articleId, type])
+  @@index([articleId])
+}
+
+/** Durable password-reset tokens — stores SHA-256 hash of the token, never raw */
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/** Durable JWT session revocation (jti) */
+model RevokedSession {
+  jti       String    @id
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  revokedAt DateTime  @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+/** Homepage layout configuration singleton (id 'default') */
+model HomepageConfig {
+  id                   String    @id @default("default")
+  featuredArticleId    String?
+  breakingArticleId    String?
+  breakingBannerActive Boolean   @default(true)
+  sectionOrder         Json?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}

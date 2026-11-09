@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered platform users with role-based access.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["ADMIN", "EDITOR", "JOURNALIST", "CONTRIBUTOR", "READER"] },
+        "avatar": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "name", "role"]
+    },
+    "Article": {
+      "title": "Article",
+      "description": "Core content unit for news dispatches.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "content": { "type": "string" },
+        "coverImage": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "IN_REVIEW", "CHANGES_REQUESTED", "SCHEDULED", "PUBLISHED", "ARCHIVED"] },
+        "priority": { "type": "string", "enum": ["NORMAL", "FEATURED", "BREAKING", "INVESTIGATIVE"] },
+        "views": { "type": "integer" },
+        "publishedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "slug", "content", "categoryId", "authorId", "status"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Editorial bureau classification.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "description": { "type": "string" },
+        "color": { "type": "string" },
+        "displayOrder": { "type": "integer" }
+      },
+      "required": ["name", "slug"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Reader feedback on articles.",
+      "type": "object",
+      "properties": {
+        "articleId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorEmail": { "type": "string" },
+        "content": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED", "SPAM"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["articleId", "authorName", "content", "status"]
+    },
+    "Poll": {
+      "title": "Poll",
+      "description": "Reader opinion polls.",
+      "type": "object",
+      "properties": {
+        "question": { "type": "string" },
+        "options": { "type": "array" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["question", "options", "active"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles indexed by UID."
+    },
+    "/articles/{articleId}": {
+      "schema": "Article",
+      "description": "News dispatches."
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Editorial categories."
+    },
+    "/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Article comments."
+    },
+    "/polls/{pollId}": {
+      "schema": "Poll",
+      "description": "Editorial polls."
+    }
+  }
+}

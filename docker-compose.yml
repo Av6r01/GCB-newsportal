@@ -1,0 +1,52 @@
+services:
+  migrate:
+    build: .
+    command: sh -c "npm run db:migrate:deploy"
+    environment:
+      - NODE_ENV=production
+      - DB_DRIVER=postgres
+      - DATABASE_URL=postgresql://user:password@db:5432/newsdb
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DB_DRIVER=postgres
+      - DATABASE_URL=postgresql://user:password@db:5432/newsdb
+      - JWT_SECRET=${JWT_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3000/api/health | grep -q postgres || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=newsdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d newsdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

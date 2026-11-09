@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-serif-en: 'Playfair Display', Georgia, serif;
+    --font-body-en: 'Source Serif 4', Georgia, serif;
+    --font-sans-en: 'Inter', system-ui, sans-serif;
+    
+    --font-sans-bn: 'Hind Siliguri', 'Hind', sans-serif;
+    --font-serif-bn: 'Noto Serif Bengali', serif;
+    
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    background-color: #FAF8F5;
+    color: #1A1A1A;
+    font-family: var(--font-body-en);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .dark body {
+    background-color: #121212;
+    color: #E5E5E5;
+  }
+}
+
+/* Custom Broadsheet Font Utilities */
+.font-display-en {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+.font-body-en {
+  font-family: 'Source Serif 4', Georgia, serif;
+}
+
+.font-sans-en {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.font-display-bn {
+  font-family: 'Hind Siliguri', sans-serif;
+}
+
+.font-body-bn {
+  font-family: 'Noto Serif Bengali', serif;
+}
+
+.font-mono-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Broadsheet Double Hairline Borders */
+.border-double-hairline {
+  border-bottom: 3px double #E2DDD5;
+}
+
+.dark .border-double-hairline {
+  border-bottom: 3px double #333333;
+}
+
+.border-hairline {
+  border-color: #E2DDD5;
+}
+
+.dark .border-hairline {
+  border-color: #2A2A2A;
+}
+
+/* Paper Canvas Background */
+.bg-paper {
+  background-color: #FAF8F5;
+}
+
+.dark .bg-paper {
+  background-color: #121212;
+}
+
+/* Ink Text Colors */
+.text-ink {
+  color: #1A1A1A;
+}
+
+.dark .text-ink {
+  color: #E5E5E5;
+}
+
+.text-ink-muted {
+  color: #666055;
+}
+
+.dark .text-ink-muted {
+  color: #A09A8F;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F1ECE4;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C8C2B7;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #990000;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Accessibility Enhancements */
+:focus-visible {
+  outline: 2px solid #990000;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

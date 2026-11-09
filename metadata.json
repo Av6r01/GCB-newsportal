@@ -1,0 +1,6 @@
+{
+  "name": "Global Chronicle News",
+  "description": "Professional digital news publishing platform featuring editorial CMS, live breaking news, AI journalist assistant, and reader discussion.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

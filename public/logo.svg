@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <metadata>Owned production masthead logo of Global Chronicle (Phase 9 SEO asset). Vector source, public domain within this repository.</metadata>
+  <rect width="512" height="512" fill="#FFFFFF"/>
+  <rect x="24" y="24" width="464" height="464" fill="none" stroke="#1A1A1A" stroke-width="8"/>
+  <text x="256" y="268" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="180" font-weight="700" fill="#990000">GC</text>
+  <line x1="96" y1="316" x2="416" y2="316" stroke="#1A1A1A" stroke-width="4"/>
+  <text x="256" y="366" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="600" fill="#1A1A1A" letter-spacing="6">GLOBAL CHRONICLE</text>
+  <text x="256" y="404" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#57534E" letter-spacing="4">EST. 1924</text>
+</svg>
